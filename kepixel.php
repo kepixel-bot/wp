@@ -187,16 +187,58 @@ if (kepixel_is_woocommerce_installed()) {
     /**
      * Display an admin notice if WooCommerce is not installed or activated
      */
-    function kepixel_woocommerce_not_detected()
-    {
-        echo '<div class="notice notice-error">';
-        echo '<p>';
-        echo 'Kepixel ';
-        esc_html_e('requires', 'kepixel');
-        echo ' <a href="https://woocommerce.com/" target="_blank">WooCommerce</a> ';
-        esc_html_e('to be installed and active.', 'kepixel');
-        echo '</p>';
-        echo '</div>';
+    function kepixel_woocommerce_not_detected() {
+        $user_id = get_current_user_id();
+
+        // Skip if user has dismissed the notice
+        if (get_user_meta($user_id, 'kepixel_woo_notice_dismissed', true)) {
+            return;
+        }
+
+        ?>
+        <div class="notice notice-info is-dismissible kepixel-notice">
+            <p>
+                <?php
+                echo 'Kepixel ';
+                esc_html_e('can work with', 'kepixel');
+                echo ' <a href="https://woocommerce.com/" target="_blank">WooCommerce</a>.';
+                ?>
+            </p>
+        </div>
+        <?php
     }
     add_action('admin_notices', 'kepixel_woocommerce_not_detected');
+
+    /**
+     * Output JS to capture dismissal and send AJAX
+     */
+    function kepixel_notice_dismiss_script() {
+        ?>
+        <script>
+            jQuery(document).ready(function($) {
+                $('.kepixel-notice').on('click', '.notice-dismiss', function() {
+                    $.post(ajaxurl, {
+                        action: 'kepixel_dismiss_notice',
+                        nonce: '<?php echo wp_create_nonce("kepixel_dismiss_nonce"); ?>'
+                    });
+                });
+            });
+        </script>
+        <?php
+    }
+    add_action('admin_footer', 'kepixel_notice_dismiss_script');
+
+    /**
+     * AJAX handler to save dismissal state
+     */
+    function kepixel_dismiss_notice_callback() {
+        check_ajax_referer('kepixel_dismiss_nonce', 'nonce');
+
+        $user_id = get_current_user_id();
+        update_user_meta($user_id, 'kepixel_woo_notice_dismissed', 1);
+
+        wp_send_json_success();
+    }
+    add_action('wp_ajax_kepixel_dismiss_notice', 'kepixel_dismiss_notice_callback');
 }
+
